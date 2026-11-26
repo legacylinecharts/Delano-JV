@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Legacy Line Charts JV v1.3</title>
+    <title>Legacy Line Charts JV v1.4</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js"></script>
@@ -3740,6 +3740,7 @@
             const pronunciationFontSize = `${9 * fontScale}pt`;
             
             React.useEffect(() => {
+              let jvNumRO = null;   // JV v1.4: re-fit the jersey number when the card resizes
               const resizeText = (element, maxSize, minSize = 8) => {
                 if (!element) return;
                 let fontSize = maxSize;
@@ -3760,29 +3761,68 @@
                   : (isPreview ? 32.8125 : 105);
                 const minNumberSize = isPreview ? 12.5 : 40;
                 resizeText(numberRef.current, maxNumberSize, minNumberSize);
-                // JV v1.3: the number also has to fit the card's height (shorter cards with a
-                // 5th line / 4th pair). Only ever shrinks, so cards that already fit don't change.
+                // JV v1.4: the jersey number must fit the card's HEIGHT too. Measured on the actual inked
+                // digits (canvas text metrics + the real baseline), plus the offset shadow and outline,
+                // so it holds on any platform/font rendering. Re-fits whenever the card's size changes
+                // (styles arriving late, adding/removing a 5th line or 4th pair, font load).
+                // Only ever shrinks below the width-fit size, so cards that already fit don't change.
                 const fitNumberHeight = () => {
                   const el = numberRef.current;
-                  if (!el || !el.parentElement) return;
+                  if (!el || !el.isConnected || !el.parentElement) return;
                   const col = el.parentElement;
-                  const cs = getComputedStyle(col);
+                  const ccs = getComputedStyle(col);
+                  const colRect = col.getBoundingClientRect();
                   const others = [...col.children]
                     .filter(c => c !== el && getComputedStyle(c).position !== 'absolute')
                     .reduce((sum, c) => sum + c.offsetHeight, 0);
-                  const avail = col.clientHeight - parseFloat(cs.paddingTop || 0) - parseFloat(cs.paddingBottom || 0) - others;
-                  if (avail <= 0) return;
+                  const limitTop = colRect.top;
+                  const limitBottom = colRect.top + col.clientTop + col.clientHeight - others;   // the column's clipping edge
+                  if (limitBottom - limitTop < 8) return;
+                  const txt = String(el.textContent || '');
+                  if (!txt) return;
+                  const ctx = (window.__llcNumCtx = window.__llcNumCtx || document.createElement('canvas').getContext('2d'));
+                  const fam = getComputedStyle(el).fontFamily;
+                  const pad = isPreview ? 0.5 : 3;   // offset shadow below the digit
+                  const probe = document.createElement('span');
+                  probe.style.cssText = 'display:inline-block;width:0;height:0;padding:0;margin:0;border:0;vertical-align:baseline;';
+                  el.insertBefore(probe, el.firstChild);   // before the digits, so it can never wrap to a 2nd line
+                  const fits = () => {
+                    const px = parseFloat(getComputedStyle(el).fontSize);
+                    ctx.font = `${px}px ${fam}`;
+                    const m = ctx.measureText(txt);
+                    const asc = (m.actualBoundingBoxAscent ?? px * 0.77);
+                    const desc = (m.actualBoundingBoxDescent ?? 0);
+                    const base = probe.getBoundingClientRect().bottom;
+                    return (base - asc - 1) >= (limitTop - 1) && (base + desc + pad) <= limitBottom;
+                  };
                   let fs = parseFloat(el.style.fontSize) || maxNumberSize;
-                  const floor = isPreview ? 3 : 12;
+                  const floor = isPreview ? 3 : 10;
                   let n = 0;
-                  while (el.offsetHeight > avail && fs > floor && n < 300) {
+                  while (!fits() && fs > floor && n < 400) {
                     fs -= 0.5;
                     el.style.fontSize = `${fs}pt`;
                     n++;
                   }
+                  probe.remove();
+                };
+                const fitNumberAll = () => {
+                  if (!numberRef.current) return;
+                  resizeText(numberRef.current, maxNumberSize, minNumberSize);
+                  fitNumberHeight();
                 };
                 fitNumberHeight();
-                if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitNumberHeight);
+                if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitNumberAll);
+                if (typeof ResizeObserver !== 'undefined' && numberRef.current.parentElement) {
+                  let raf = 0, lastW = -1, lastH = -1;
+                  jvNumRO = new ResizeObserver(entries => {
+                    const r = entries[0] && entries[0].contentRect;
+                    if (!r || (Math.round(r.width) === lastW && Math.round(r.height) === lastH)) return;
+                    lastW = Math.round(r.width); lastH = Math.round(r.height);
+                    cancelAnimationFrame(raf);
+                    raf = requestAnimationFrame(fitNumberAll);
+                  });
+                  jvNumRO.observe(numberRef.current.parentElement);
+                }
               }
               
               if (nameRef.current) {
@@ -3815,6 +3855,7 @@
                 // Apply shift after size is locked in
                 pronunciationRef.current.style.transform = 'translateY(2px)';
               }
+              return () => { if (jvNumRO) jvNumRO.disconnect(); };
             }, [player.number, player.name, pronunciation, isGoalie, isPreview, hasLogos]);
             
             return (
