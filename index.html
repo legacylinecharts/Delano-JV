@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Legacy Line Charts JV v1.0</title>
+    <title>Legacy Line Charts JV v1.1</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js"></script>
@@ -3888,7 +3888,9 @@
                     {player.name}
                   </div>
                   
-                  <div style={{ marginTop: 'auto', width: '100%' }}>
+                  {/* JV v1.1: with no career rows, spread the info line and the two season rows
+                      evenly over the space under the name. Card size and font sizes unchanged. */}
+                  <div style={{ flex: 1, minHeight: 0, width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-evenly' }}>
                   <div style={{ 
                     display: 'flex',
                     justifyContent: 'space-between',
