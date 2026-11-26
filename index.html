@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Legacy Line Charts JV v1.4</title>
+    <title>Legacy Line Charts JV v1.5</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js"></script>
@@ -3776,7 +3776,9 @@
                     .filter(c => c !== el && getComputedStyle(c).position !== 'absolute')
                     .reduce((sum, c) => sum + c.offsetHeight, 0);
                   const limitTop = colRect.top;
-                  const limitBottom = colRect.top + col.clientTop + col.clientHeight - others;   // the column's clipping edge
+                  // JV v1.5: keep the same breathing room below the digits that default (85px) cards have —
+                  // the column's bottom padding — so shorter cards never look chopped against the border.
+                  const limitBottom = colRect.top + col.clientTop + col.clientHeight - parseFloat(ccs.paddingBottom || 0) - others + 0.5;
                   if (limitBottom - limitTop < 8) return;
                   const txt = String(el.textContent || '');
                   if (!txt) return;
